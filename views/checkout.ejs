@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout — Pedidos Online</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="brand">🍔 Pedidos Online</a>
+</nav>
+
+<div class="container">
+  <div class="checkout-wrapper">
+    <h2>📋 Completa tu pedido</h2>
+
+    <!-- Resumen del carrito (renderizado por JS) -->
+    <div class="order-summary">
+      <h3>Tu pedido:</h3>
+      <div id="summary-items">
+        <p style="color:#999; font-size:.9rem;">Cargando carrito…</p>
+      </div>
+      <div class="summary-total">
+        <span>Total:</span>
+        <span id="summary-total">$0.00</span>
+      </div>
+    </div>
+
+    <!-- Formulario POST al servidor -->
+    <form method="POST" action="/checkout" id="checkout-form">
+      <!-- El carrito se inyecta como JSON en este campo oculto -->
+      <input type="hidden" name="items" id="items-json">
+
+      <div class="form-group">
+        <label for="customer_name">Nombre completo *</label>
+        <input type="text" id="customer_name" name="customer_name"
+               placeholder="Juan García" required>
+      </div>
+
+      <div class="form-group">
+        <label for="phone">Teléfono *</label>
+        <input type="tel" id="phone" name="phone"
+               placeholder="55 1234 5678" required>
+      </div>
+
+      <div class="form-group">
+        <label for="address">Dirección de entrega *</label>
+        <input type="text" id="address" name="address"
+               placeholder="Calle, número, colonia, ciudad" required>
+      </div>
+
+      <div class="form-group">
+        <label for="notes">Notas adicionales</label>
+        <textarea id="notes" name="notes"
+                  placeholder="Sin cebolla, tocar timbre dos veces, etc."></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
+        ✅ Confirmar pedido
+      </button>
+
+      <a href="/" class="btn btn-outline btn-full" style="margin-top:.8rem;">
+        ← Seguir comprando
+      </a>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Leer carrito del localStorage y mostrar resumen
+  function getCart() {
+    try { return JSON.parse(localStorage.getItem('pedidos_cart')) || []; }
+    catch { return []; }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const cart = getCart();
+
+    if (cart.length === 0) {
+      // Si no hay carrito, redirigir al catálogo
+      window.location.href = '/?error=carrito_vacio';
+      return;
+    }
+
+    // Mostrar resumen
+    const summaryEl = document.getElementById('summary-items');
+    const totalEl   = document.getElementById('summary-total');
+    let total = 0;
+
+    summaryEl.innerHTML = cart.map(item => {
+      const subtotal = item.price * item.qty;
+      total += subtotal;
+      return `<div class="summary-item">
+        <span>${item.qty}× ${item.name}</span>
+        <span>$${subtotal.toFixed(2)}</span>
+      </div>`;
+    }).join('');
+
+    totalEl.textContent = '$' + total.toFixed(2);
+
+    // Inyectar carrito en campo oculto antes de enviar
+    document.getElementById('checkout-form').addEventListener('submit', (e) => {
+      const itemsJson = JSON.stringify(cart.map(i => ({
+        id:  i.id,
+        qty: i.qty
+      })));
+      document.getElementById('items-json').value = itemsJson;
+
+      // Limpiar carrito después de enviar
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('submit-btn').textContent = 'Procesando…';
+      localStorage.removeItem('pedidos_cart');
+    });
+  });
+</script>
+</body>
+</html>

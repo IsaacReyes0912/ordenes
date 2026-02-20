@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍔 Nuestro Menú</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a href="/" class="brand">🍔 Pedidos Online</a>
+  <div class="nav-links">
+    <a href="/admin">Panel Admin</a>
+  </div>
+</nav>
+
+<!-- Carrito flotante -->
+<button id="cart-fab">
+  🛒 Carrito <span id="cart-count">0</span>
+</button>
+
+<!-- Panel del carrito (slide-in) -->
+<div id="overlay"></div>
+<div id="cart-panel">
+  <div class="cart-header">
+    🛒 Tu pedido
+    <button id="cart-close">✕</button>
+  </div>
+  <div id="cart-items" class="cart-items">
+    <div class="cart-empty">Tu carrito está vacío</div>
+  </div>
+  <div class="cart-footer">
+    <div class="cart-total">
+      <span>Total:</span>
+      <span id="cart-total">$0.00</span>
+    </div>
+    <button id="checkout-btn" class="btn btn-primary btn-full" disabled>
+      Ir a pagar →
+    </button>
+  </div>
+</div>
+
+<!-- Catálogo -->
+<div class="container">
+  <h1>🍽️ Nuestro Menú</h1>
+  <p style="margin-bottom:1.5rem; color:#666;">Agrega tus productos favoritos al carrito y realiza tu pedido.</p>
+
+  <div class="products-grid">
+    <% products.forEach(product => { %>
+    <div class="product-card">
+      <% if (product.image_url) { %>
+        <img src="<%= product.image_url %>" alt="<%= product.name %>" loading="lazy">
+      <% } else { %>
+        <div style="height:180px; background:#eee; display:flex; align-items:center; justify-content:center; font-size:3rem;">🍽️</div>
+      <% } %>
+      <div class="card-body">
+        <div class="card-title"><%= product.name %></div>
+        <div class="card-price">$<%= parseFloat(product.price).toFixed(2) %></div>
+        <div class="stock-info">Stock disponible: <%= product.stock %></div>
+        <button
+          class="btn btn-primary btn-full"
+          onclick='addToCart({
+            id:    <%= product.id %>,
+            name:  "<%= product.name.replace(/"/g,"&quot;") %>",
+            price: <%= product.price %>,
+            stock: <%= product.stock %>
+          })'
+        >
+          + Agregar
+        </button>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+</div>
+
+<script src="/js/cart.js"></script>
+</body>
+</html>

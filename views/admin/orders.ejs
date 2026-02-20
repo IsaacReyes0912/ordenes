@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Pedidos</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="admin-topbar">
+  <h1>🍔 Admin — Pedidos Online</h1>
+  <a href="/admin/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+</div>
+
+<div class="admin-container">
+
+  <!-- Estadísticas rápidas -->
+  <%
+    const counts = { pendiente:0, en_proceso:0, entregado:0, cancelado:0 };
+    orders.forEach(o => counts[o.status] = (counts[o.status]||0) + 1);
+  %>
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-num"><%= orders.length %></div>
+      <div class="stat-label">Total pedidos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#856404;"><%= counts.pendiente %></div>
+      <div class="stat-label">⏳ Pendientes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#004085;"><%= counts.en_proceso %></div>
+      <div class="stat-label">🔄 En proceso</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#155724;"><%= counts.entregado %></div>
+      <div class="stat-label">✅ Entregados</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#721c24;"><%= counts.cancelado %></div>
+      <div class="stat-label">❌ Cancelados</div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filter-bar">
+    <a href="/admin" class="btn <%= !statusFilter ? 'btn-dark' : 'btn-outline' %> btn-sm">Todos</a>
+    <a href="/admin?status=pendiente"  class="btn <%= statusFilter==='pendiente'  ? 'btn-dark':'btn-outline' %> btn-sm">⏳ Pendientes</a>
+    <a href="/admin?status=en_proceso" class="btn <%= statusFilter==='en_proceso' ? 'btn-dark':'btn-outline' %> btn-sm">🔄 En proceso</a>
+    <a href="/admin?status=entregado"  class="btn <%= statusFilter==='entregado'  ? 'btn-dark':'btn-outline' %> btn-sm">✅ Entregados</a>
+    <a href="/admin?status=cancelado"  class="btn <%= statusFilter==='cancelado'  ? 'btn-dark':'btn-outline' %> btn-sm">❌ Cancelados</a>
+  </div>
+
+  <!-- Tabla de pedidos -->
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Cliente</th>
+          <th>Teléfono</th>
+          <th>Total</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (orders.length === 0) { %>
+          <tr><td colspan="7" style="text-align:center; color:#999; padding:2rem;">No hay pedidos.</td></tr>
+        <% } %>
+        <% orders.forEach(order => { %>
+        <tr>
+          <td><strong>#<%= order.id %></strong></td>
+          <td><%= order.customer_name %></td>
+          <td><%= order.phone %></td>
+          <td style="color:#e85d04; font-weight:700;">$<%= parseFloat(order.total).toFixed(2) %></td>
+          <td>
+            <span class="badge-status badge-<%= order.status %>">
+              <%= order.status.replace('_', ' ') %>
+            </span>
+          </td>
+          <td style="font-size:.82rem; color:#666;">
+            <%= new Date(order.created_at).toLocaleString('es-MX', {
+              day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
+            }) %>
+          </td>
+          <td>
+            <a href="/admin/order/<%= order.id %>" class="btn btn-dark btn-sm">Ver detalle</a>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

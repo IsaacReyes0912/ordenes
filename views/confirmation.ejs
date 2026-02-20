@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>¡Pedido confirmado! — Pedidos Online</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="brand">🍔 Pedidos Online</a>
+</nav>
+
+<div class="container">
+  <div class="confirmation-box">
+    <div class="check-icon">✅</div>
+    <h1>¡Pedido recibido!</h1>
+    <p style="color:#555; margin-bottom:.5rem;">
+      Gracias, <strong><%= order.customer_name %></strong>.<br>
+      Pronto nos pondremos en contacto contigo.
+    </p>
+
+    <div class="order-info" style="text-align:left">
+      <p><strong>Pedido #:</strong> <%= order.id %></p>
+      <p><strong>Estado:</strong>
+        <span class="badge-status badge-<%= order.status %>"><%= order.status.replace('_',' ') %></span>
+      </p>
+      <p><strong>Teléfono:</strong> <%= order.phone %></p>
+      <p><strong>Dirección:</strong> <%= order.address %></p>
+      <% if (order.notes) { %>
+        <p><strong>Notas:</strong> <%= order.notes %></p>
+      <% } %>
+    </div>
+
+    <!-- Detalle de productos -->
+    <table style="width:100%; border-collapse:collapse; font-size:.9rem; margin-bottom:1rem;">
+      <thead>
+        <tr style="background:#f4f4f4;">
+          <th style="padding:.6rem; text-align:left;">Producto</th>
+          <th style="padding:.6rem; text-align:center;">Cant.</th>
+          <th style="padding:.6rem; text-align:right;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(item => { %>
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:.6rem;"><%= item.product_name %></td>
+          <td style="padding:.6rem; text-align:center;"><%= item.quantity %></td>
+          <td style="padding:.6rem; text-align:right; color:#e85d04; font-weight:700;">
+            $<%= (item.quantity * item.unit_price).toFixed(2) %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2" style="padding:.8rem; font-weight:700; text-align:right;">Total:</td>
+          <td style="padding:.8rem; font-weight:700; color:#e85d04; font-size:1.1rem; text-align:right;">
+            $<%= parseFloat(order.total).toFixed(2) %>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <a href="/" class="btn btn-primary" style="margin-right:.6rem;">← Volver al menú</a>
+  </div>
+</div>
+
+</body>
+</html>
