@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalle Pedido — Panel Empleado</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="admin-topbar">
+  <h1>🍔 Panel Empleado</h1>
+  <div style="display:flex; gap:.8rem; align-items:center;">
+    <a href="/empleado/pedidos" style="color:#ccc; text-decoration:none; font-size:.9rem;">← Pedidos</a>
+    <a href="/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+  </div>
+</div>
+
+<div class="admin-container">
+
+  <a href="/empleado/pedidos" class="back-link">← Volver a pedidos</a>
+
+  <!-- Datos del cliente -->
+  <div class="detail-card">
+    <h3>👤 Datos del cliente</h3>
+    <div class="detail-grid">
+      <div class="detail-item">
+        <label>Nombre</label>
+        <p><%= order.customer_name %></p>
+      </div>
+      <div class="detail-item">
+        <label>Teléfono</label>
+        <p><%= order.phone %></p>
+      </div>
+      <div class="detail-item" style="grid-column:1/-1;">
+        <label>Dirección</label>
+        <p><%= order.address %></p>
+      </div>
+      <% if (order.notes) { %>
+      <div class="detail-item" style="grid-column:1/-1;">
+        <label>Notas</label>
+        <p><%= order.notes %></p>
+      </div>
+      <% } %>
+      <div class="detail-item">
+        <label>Fecha del pedido</label>
+        <p><%= new Date(order.created_at).toLocaleString('es-MX') %></p>
+      </div>
+      <div class="detail-item">
+        <label>Estado actual</label>
+        <p>
+          <span class="badge-status badge-<%= order.status %>">
+            <%= order.status.replace('_', ' ') %>
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Productos del pedido -->
+  <div class="detail-card">
+    <h3>🛒 Productos</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th style="text-align:center;">Cantidad</th>
+            <th style="text-align:right;">Precio unit.</th>
+            <th style="text-align:right;">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach(item => { %>
+          <tr>
+            <td><%= item.product_name %></td>
+            <td style="text-align:center;"><%= item.quantity %></td>
+            <td style="text-align:right;">$<%= parseFloat(item.unit_price).toFixed(2) %></td>
+            <td style="text-align:right; color:#e85d04; font-weight:700;">
+              $<%= (item.quantity * item.unit_price).toFixed(2) %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="text-align:right; font-weight:700; padding:.8rem;">Total:</td>
+            <td style="text-align:right; font-weight:700; color:#e85d04; font-size:1.1rem; padding:.8rem;">
+              $<%= parseFloat(order.total).toFixed(2) %>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cambiar estado -->
+  <div class="detail-card">
+    <h3>🔄 Actualizar estado</h3>
+    <form method="POST" action="/empleado/pedido/<%= order.id %>/status" class="status-form">
+      <select name="status">
+        <option value="pendiente"   <%= order.status === 'pendiente'   ? 'selected' : '' %>>⏳ Pendiente</option>
+        <option value="en_proceso"  <%= order.status === 'en_proceso'  ? 'selected' : '' %>>🔄 En proceso</option>
+        <option value="entregado"   <%= order.status === 'entregado'   ? 'selected' : '' %>>✅ Entregado</option>
+        <option value="cancelado"   <%= order.status === 'cancelado'   ? 'selected' : '' %>>❌ Cancelado</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Guardar cambio</button>
+    </form>
+  </div>
+
+</div>
+</body>
+</html>

@@ -7,6 +7,7 @@ const express = require('express');
 const session = require('express-session');
 const path    = require('path');
 const db      = require('./db');
+const { enviarConfirmacionPedido, enviarCambioEstado } = require('./mailer');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -26,7 +27,7 @@ app.use(session({
   cookie: { maxAge: 1000 * 60 * 60 * 2 }
 }));
 
-// ─── Middleware global: pasar usuario a todas las vistas ──
+// Middleware global: pasar usuario a todas las vistas 
 app.use((req, res, next) => {
   res.locals.currentUser = req.session.user || null;
   next();
@@ -107,7 +108,11 @@ app.post('/login', async (req, res) => {
       return res.render('auth/login', { error: 'Correo o contraseña incorrectos.', next: redirectTo });
 
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role };
-    res.redirect(redirectTo);
+
+    // Redirigir según el rol
+    if (user.role === 'EMPLEADO') return res.redirect('/empleado/pedidos');
+    if (user.role === 'ADMIN') return res.redirect('/admin');
+res.redirect(redirectTo);
   } catch (err) {
     console.error(err);
     res.render('auth/login', { error: 'Error al iniciar sesión.', next: redirectTo });
@@ -233,7 +238,36 @@ app.post('/checkout', async (req, res) => {
     }
 
     await conn.commit();
-    res.redirect('/confirmation/' + orderId);
+
+// Enviar email de confirmación si el cliente está registrado
+if (userId) {
+  try {
+    const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [userId]);
+    if (userRows.length > 0) {
+      const emailOrder = {
+        id: orderId,
+        customer_name,
+        phone,
+        address,
+        total: total.toFixed(2),
+        email: userRows[0].email
+      };
+      // Obtener items con nombre del producto para el email
+      const [emailItems] = await db.query(
+        `SELECT oi.*, p.name AS product_name
+         FROM order_items oi
+         JOIN products p ON p.id = oi.product_id
+         WHERE oi.order_id = ?`,
+        [orderId]
+      );
+      enviarConfirmacionPedido(emailOrder, emailItems).catch(console.error);
+    }
+  } catch (emailErr) {
+    console.error('Error enviando email:', emailErr);
+  }
+}
+
+res.redirect('/confirmation/' + orderId);
   } catch (err) {
     await conn.rollback();
     console.error(err);
@@ -330,7 +364,106 @@ app.post('/admin/order/:id/status', requireAdmin, async (req, res) => {
     return res.status(400).send('Estado inválido.');
   try {
     await db.query('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
-    res.redirect('/admin/order/' + req.params.id);
+
+// Enviar email de cambio de estado si el pedido tiene usuario registrado
+try {
+  const [orderRows] = await db.query(
+    `SELECT o.*, u.email AS email
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     WHERE o.id = ?`,
+    [req.params.id]
+  );
+  if (orderRows.length > 0 && orderRows[0].email) {
+    enviarCambioEstado(orderRows[0]).catch(console.error);
+  }
+} catch (emailErr) {
+  console.error('Error enviando email:', emailErr);
+}
+
+res.redirect('/admin/order/' + req.params.id);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al actualizar estado.');
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  RUTAS EMPLEADO
+// ══════════════════════════════════════════════════════
+
+function requireEmpleado(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  if (req.session.user.role === 'EMPLEADO' || req.session.user.role === 'ADMIN')
+    return next();
+  res.status(403).send('Acceso denegado. No tienes permisos para esta sección.');
+}
+
+// GET /empleado/pedidos
+app.get('/empleado/pedidos', requireEmpleado, async (req, res) => {
+  try {
+    const statusFilter = req.query.status || '';
+    let query  = 'SELECT * FROM orders';
+    let params = [];
+    if (statusFilter) {
+      query  += ' WHERE status = ?';
+      params  = [statusFilter];
+    }
+    query += ' ORDER BY created_at DESC';
+    const [orders] = await db.query(query, params);
+    res.render('empleado/pedidos', { orders, statusFilter });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar pedidos.');
+  }
+});
+
+// GET /empleado/pedido/:id
+app.get('/empleado/pedido/:id', requireEmpleado, async (req, res) => {
+  try {
+    const [orders] = await db.query('SELECT * FROM orders WHERE id = ?', [req.params.id]);
+    if (orders.length === 0) return res.status(404).send('Pedido no encontrado.');
+    const order = orders[0];
+    const [items] = await db.query(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ?`,
+      [order.id]
+    );
+    res.render('empleado/detalle', { order, items });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar el pedido.');
+  }
+});
+
+// POST /empleado/pedido/:id/status
+app.post('/empleado/pedido/:id/status', requireEmpleado, async (req, res) => {
+  const { status } = req.body;
+  const validStatuses = ['pendiente', 'en_proceso', 'entregado', 'cancelado'];
+  if (!validStatuses.includes(status))
+    return res.status(400).send('Estado inválido.');
+  try {
+    await db.query('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
+
+// Enviar email de cambio de estado
+try {
+  const [orderRows] = await db.query(
+    `SELECT o.*, u.email AS email
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     WHERE o.id = ?`,
+    [req.params.id]
+  );
+  if (orderRows.length > 0 && orderRows[0].email) {
+    enviarCambioEstado(orderRows[0]).catch(console.error);
+  }
+} catch (emailErr) {
+  console.error('Error enviando email:', emailErr);
+}
+
+res.redirect('/empleado/pedido/' + req.params.id);
   } catch (err) {
     console.error(err);
     res.status(500).send('Error al actualizar estado.');

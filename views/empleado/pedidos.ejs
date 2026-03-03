@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin — Pedidos</title>
+  <title>Panel Empleado — Pedidos</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
 <div class="admin-topbar">
-  <h1>🍔 Admin — Pedidos Online</h1>
+  <h1>🍔 Panel Empleado</h1>
   <div style="display:flex; gap:.8rem; align-items:center;">
-    <a href="/admin/reportes" style="color:#ccc; text-decoration:none; font-size:.9rem;">📊 Reportes</a>
-    <a href="/admin/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+    <span style="color:#ccc; font-size:.9rem;">👋 <%= currentUser.name %></span>
+    <a href="/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
   </div>
 </div>
 
 <div class="admin-container">
 
-  <!-- Estadísticas -->
+  <!-- Estadísticas rápidas -->
   <%
     const counts = { pendiente:0, en_proceso:0, entregado:0, cancelado:0 };
-    orders.forEach(o => counts[o.status] = (counts[o.status]||0) + 1);
+    orders.forEach(o => counts[o.status] = (counts[o.status] || 0) + 1);
   %>
   <div class="stats-bar">
     <div class="stat-card">
@@ -48,11 +48,11 @@
 
   <!-- Filtros -->
   <div class="filter-bar">
-    <a href="/admin" class="btn <%= !statusFilter ? 'btn-dark' : 'btn-outline' %> btn-sm">Todos</a>
-    <a href="/admin?status=pendiente"  class="btn <%= statusFilter==='pendiente'  ? 'btn-dark':'btn-outline' %> btn-sm">⏳ Pendientes</a>
-    <a href="/admin?status=en_proceso" class="btn <%= statusFilter==='en_proceso' ? 'btn-dark':'btn-outline' %> btn-sm">🔄 En proceso</a>
-    <a href="/admin?status=entregado"  class="btn <%= statusFilter==='entregado'  ? 'btn-dark':'btn-outline' %> btn-sm">✅ Entregados</a>
-    <a href="/admin?status=cancelado"  class="btn <%= statusFilter==='cancelado'  ? 'btn-dark':'btn-outline' %> btn-sm">❌ Cancelados</a>
+    <a href="/empleado/pedidos" class="btn <%= !statusFilter ? 'btn-dark' : 'btn-outline' %> btn-sm">Todos</a>
+    <a href="/empleado/pedidos?status=pendiente"  class="btn <%= statusFilter==='pendiente'  ? 'btn-dark':'btn-outline' %> btn-sm">⏳ Pendientes</a>
+    <a href="/empleado/pedidos?status=en_proceso" class="btn <%= statusFilter==='en_proceso' ? 'btn-dark':'btn-outline' %> btn-sm">🔄 En proceso</a>
+    <a href="/empleado/pedidos?status=entregado"  class="btn <%= statusFilter==='entregado'  ? 'btn-dark':'btn-outline' %> btn-sm">✅ Entregados</a>
+    <a href="/empleado/pedidos?status=cancelado"  class="btn <%= statusFilter==='cancelado'  ? 'btn-dark':'btn-outline' %> btn-sm">❌ Cancelados</a>
   </div>
 
   <!-- Tabla de pedidos -->
@@ -90,7 +90,7 @@
             }) %>
           </td>
           <td>
-            <a href="/admin/order/<%= order.id %>" class="btn btn-dark btn-sm">Ver detalle</a>
+            <a href="/empleado/pedido/<%= order.id %>" class="btn btn-dark btn-sm">Ver detalle</a>
           </td>
         </tr>
         <% }) %>
