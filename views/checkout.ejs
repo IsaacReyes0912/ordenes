@@ -10,11 +10,28 @@
 
 <nav class="navbar">
   <a href="/" class="brand">🍔 Pedidos Online</a>
+  <div class="nav-links">
+    <% if (currentUser) { %>
+      <a href="/mi-cuenta" style="color:#fff;">👤 <%= currentUser.name %></a>
+      <a href="/logout">Cerrar sesión</a>
+    <% } else { %>
+      <a href="/login">Iniciar sesión</a>
+      <a href="/registro">Registrarse</a>
+    <% } %>
+  </div>
 </nav>
 
 <div class="container">
   <div class="checkout-wrapper">
     <h2>📋 Completa tu pedido</h2>
+
+    <% if (!currentUser) { %>
+    <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:8px; padding:.9rem 1rem; margin-bottom:1.2rem; font-size:.9rem;">
+      💡 <strong>¿Tienes cuenta?</strong>
+      <a href="/login?next=/checkout" style="color:var(--primary); font-weight:600;">Inicia sesión</a>
+      para que tus datos se llenen automáticamente.
+    </div>
+    <% } %>
 
     <!-- Resumen del carrito (renderizado por JS) -->
     <div class="order-summary">
@@ -30,25 +47,27 @@
 
     <!-- Formulario POST al servidor -->
     <form method="POST" action="/checkout" id="checkout-form">
-      <!-- El carrito se inyecta como JSON en este campo oculto -->
       <input type="hidden" name="items" id="items-json">
 
       <div class="form-group">
         <label for="customer_name">Nombre completo *</label>
         <input type="text" id="customer_name" name="customer_name"
-               placeholder="Juan García" required>
+               placeholder="Juan García" required
+               value="<%= prefill ? (prefill.name || '') : '' %>">
       </div>
 
       <div class="form-group">
         <label for="phone">Teléfono *</label>
         <input type="tel" id="phone" name="phone"
-               placeholder="55 1234 5678" required>
+               placeholder="55 1234 5678" required
+               value="<%= prefill ? (prefill.phone || '') : '' %>">
       </div>
 
       <div class="form-group">
         <label for="address">Dirección de entrega *</label>
         <input type="text" id="address" name="address"
-               placeholder="Calle, número, colonia, ciudad" required>
+               placeholder="Calle, número, colonia, ciudad" required
+               value="<%= prefill ? (prefill.address || '') : '' %>">
       </div>
 
       <div class="form-group">
@@ -69,7 +88,6 @@
 </div>
 
 <script>
-  // Leer carrito del localStorage y mostrar resumen
   function getCart() {
     try { return JSON.parse(localStorage.getItem('pedidos_cart')) || []; }
     catch { return []; }
@@ -79,12 +97,10 @@
     const cart = getCart();
 
     if (cart.length === 0) {
-      // Si no hay carrito, redirigir al catálogo
       window.location.href = '/?error=carrito_vacio';
       return;
     }
 
-    // Mostrar resumen
     const summaryEl = document.getElementById('summary-items');
     const totalEl   = document.getElementById('summary-total');
     let total = 0;
@@ -100,15 +116,12 @@
 
     totalEl.textContent = '$' + total.toFixed(2);
 
-    // Inyectar carrito en campo oculto antes de enviar
     document.getElementById('checkout-form').addEventListener('submit', (e) => {
       const itemsJson = JSON.stringify(cart.map(i => ({
         id:  i.id,
         qty: i.qty
       })));
       document.getElementById('items-json').value = itemsJson;
-
-      // Limpiar carrito después de enviar
       document.getElementById('submit-btn').disabled = true;
       document.getElementById('submit-btn').textContent = 'Procesando…';
       localStorage.removeItem('pedidos_cart');

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi cuenta — Pedidos Online</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="brand">🍔 Pedidos Online</a>
+  <div class="nav-links">
+    <a href="/mi-cuenta" style="color:#fff;">👤 <%= currentUser.name %></a>
+    <a href="/logout">Cerrar sesión</a>
+  </div>
+</nav>
+
+<div class="container">
+  <h1 style="margin-bottom:.4rem;">👤 Mi cuenta</h1>
+  <p style="color:#666; margin-bottom:2rem;">Bienvenido/a, <strong><%= user.name %></strong></p>
+
+  <% if (success) { %>
+    <div style="background:#d4edda; color:#155724; padding:.8rem 1rem; border-radius:8px; margin-bottom:1.5rem;">
+      ✅ Perfil actualizado correctamente.
+    </div>
+  <% } %>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; align-items:start;">
+
+    <!-- Datos personales -->
+    <div class="detail-card">
+      <h3>Datos personales</h3>
+      <form method="POST" action="/mi-cuenta">
+
+        <div class="form-group">
+          <label>Nombre completo *</label>
+          <input type="text" name="name" value="<%= user.name %>" required>
+        </div>
+
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input type="email" value="<%= user.email %>" disabled
+                 style="background:#f4f4f4; color:#888; cursor:not-allowed;">
+          <small style="color:#aaa;">El correo no se puede modificar</small>
+        </div>
+
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="tel" name="phone" value="<%= user.phone || '' %>"
+                 placeholder="55 1234 5678">
+        </div>
+
+        <div class="form-group">
+          <label>Dirección de entrega</label>
+          <input type="text" name="address" value="<%= user.address || '' %>"
+                 placeholder="Calle, número, colonia, ciudad">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      </form>
+    </div>
+
+    <!-- Historial de pedidos -->
+    <div class="detail-card">
+      <h3>Mis pedidos</h3>
+      <% if (orders.length === 0) { %>
+        <p style="color:#999; text-align:center; padding:2rem 0;">
+          Aún no tienes pedidos.<br>
+          <a href="/" class="btn btn-primary btn-sm"
+             style="margin-top:1rem; display:inline-block;">Ver el menú</a>
+        </p>
+      <% } else { %>
+        <div style="display:flex; flex-direction:column; gap:.8rem;">
+          <% orders.forEach(order => { %>
+          <div style="background:#f9f9f9; border-radius:8px; padding:.9rem; border:1px solid #eee;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">
+              <strong>#<%= order.id %></strong>
+              <span class="badge-status badge-<%= order.status %>">
+                <%= order.status.replace('_',' ') %>
+              </span>
+            </div>
+            <div style="font-size:.85rem; color:#666;">
+              <%= new Date(order.created_at).toLocaleString('es-MX', {
+                day:'2-digit', month:'short', year:'numeric',
+                hour:'2-digit', minute:'2-digit'
+              }) %>
+            </div>
+            <div style="font-weight:700; color:var(--primary); margin-top:.2rem;">
+              $<%= parseFloat(order.total).toFixed(2) %>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

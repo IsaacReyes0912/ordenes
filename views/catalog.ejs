@@ -12,7 +12,13 @@
 <nav class="navbar">
   <a href="/" class="brand">🍔 Pedidos Online</a>
   <div class="nav-links">
-    <a href="/admin">Panel Admin</a>
+    <% if (currentUser) { %>
+      <a href="/mi-cuenta" style="color:#fff;">👤 <%= currentUser.name %></a>
+      <a href="/logout">Cerrar sesión</a>
+    <% } else { %>
+      <a href="/login">Iniciar sesión</a>
+      <a href="/registro">Registrarse</a>
+    <% } %>
   </div>
 </nav>
 
