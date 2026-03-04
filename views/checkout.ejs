@@ -33,7 +33,6 @@
     </div>
     <% } %>
 
-    <!-- Resumen del carrito (renderizado por JS) -->
     <div class="order-summary">
       <h3>Tu pedido:</h3>
       <div id="summary-items">
@@ -45,7 +44,6 @@
       </div>
     </div>
 
-    <!-- Formulario POST al servidor -->
     <form method="POST" action="/checkout" id="checkout-form">
       <input type="hidden" name="items" id="items-json">
 
@@ -77,8 +75,14 @@
       </div>
 
       <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
-        ✅ Confirmar pedido
+        ✅ Confirmar pedido (pago en efectivo)
       </button>
+
+      <div style="text-align:center; margin:1rem 0; color:#aaa; font-size:.9rem;">
+        — o paga en línea con —
+      </div>
+
+      <div id="paypal-button-container"></div>
 
       <a href="/" class="btn btn-outline btn-full" style="margin-top:.8rem;">
         ← Seguir comprando
@@ -128,5 +132,63 @@
     });
   });
 </script>
+
+<script src="https://www.paypal.com/sdk/js?client-id=AdlcbqjG5tbELES-tqQn34kjd6fhnNymeI6_wHAJRg1Iz3sgMkxOgLtUk2qzFZfXwI2rpA5urkszFr2n&currency=USD"></script>
+<script>
+  paypal.Buttons({
+    createOrder: async () => {
+      const cart = getCart();
+      const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+
+      const res = await fetch('/paypal/crear-orden', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total: total.toFixed(2) })
+      });
+      const data = await res.json();
+      return data.id;
+    },
+
+    onApprove: async (data) => {
+      const cart = getCart();
+      const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+
+      const customer_name = document.getElementById('customer_name').value;
+      const phone         = document.getElementById('phone').value;
+      const address       = document.getElementById('address').value;
+      const notes         = document.getElementById('notes').value;
+
+      if (!customer_name || !phone || !address) {
+        alert('Por favor completa tu nombre, teléfono y dirección antes de pagar.');
+        return;
+      }
+
+      const items = JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty })));
+
+      const res = await fetch('/paypal/capturar-orden', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paypalOrderId: data.orderID,
+          pedidoData: { customer_name, phone, address, notes, items, total: total.toFixed(2) }
+        })
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        localStorage.removeItem('pedidos_cart');
+        window.location.href = '/confirmation/' + result.orderId;
+      } else {
+        alert('Error al procesar el pago: ' + result.error);
+      }
+    },
+
+    onError: (err) => {
+      console.error('Error PayPal:', err);
+      alert('Ocurrió un error con PayPal. Intenta de nuevo.');
+    }
+  }).render('#paypal-button-container');
+</script>
+
 </body>
 </html>
