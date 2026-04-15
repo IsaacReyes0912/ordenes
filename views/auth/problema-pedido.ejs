@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Problema con pedido</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="brand">🍔 Pedidos Online</a>
+  <div class="nav-links">
+    <a href="/mi-cuenta" style="color:#fff;">👤 <%= currentUser.name %></a>
+    <a href="/logout">Cerrar sesión</a>
+  </div>
+</nav>
+
+<div class="container" style="max-width:800px;">
+  <h1 style="margin-bottom:.5rem;">Problema con pedido</h1>
+  <p style="color:#666; margin-bottom:1.5rem;">
+    Selecciona el pedido y explícanos cuál fue el inconveniente.
+  </p>
+
+  <% if (success) { %>
+    <div style="background:#d4edda; color:#155724; padding:1rem; border-radius:8px; margin-bottom:1rem;">
+      ✅ Tu solicitud fue enviada correctamente.
+    </div>
+  <% } %>
+
+  <% if (error) { %>
+    <div style="background:#f8d7da; color:#721c24; padding:1rem; border-radius:8px; margin-bottom:1rem;">
+      ❌ <%= error %>
+    </div>
+  <% } %>
+
+  <div class="detail-card">
+    <form method="POST" action="/problema-pedido">
+      <div class="form-group">
+        <label for="order_id">Código de pedido</label>
+        <select name="order_id" id="order_id" required>
+          <option value="">Selecciona un pedido</option>
+          <% orders.forEach(order => { %>
+            <option value="<%= order.id %>" <%= String(selectedOrderId) === String(order.id) ? 'selected' : '' %>>
+              Pedido #<%= order.id %> — $<%= parseFloat(order.total).toFixed(2) %> — <%= order.status.replace('_',' ') %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="problem_note">Describe el problema</label>
+        <textarea name="problem_note" id="problem_note" rows="6" required
+          placeholder="Explica qué pasó con tu pedido..."><%= old.problem_note || '' %></textarea>
+      </div>
+
+      <div style="display:flex; gap:.8rem; flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">Enviar solicitud</button>
+        <a href="/mi-cuenta" class="btn btn-outline">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

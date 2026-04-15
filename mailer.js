@@ -1,4 +1,4 @@
-//Módulo para envío de emails
+// Módulo para envío de emails
 
 require('dotenv').config();
 const nodemailer = require('nodemailer');
@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-//Email: Confirmación de pedido 
+// Email: Confirmación de pedido
 async function enviarConfirmacionPedido(order, items) {
   const itemsHtml = items.map(item => `
     <tr>
@@ -63,7 +63,7 @@ async function enviarConfirmacionPedido(order, items) {
         </p>
       </div>
       <div style="background:#f4f4f4; padding:1rem; border-radius:0 0 12px 12px; text-align:center; font-size:.8rem; color:#999;">
-        Pedidos Online © 2025
+        Pedidos Online ©️ 2025
       </div>
     </div>
   `;
@@ -76,13 +76,13 @@ async function enviarConfirmacionPedido(order, items) {
   });
 }
 
-// Email:Cambio de estado
+// Email: Cambio de estado
 async function enviarCambioEstado(order) {
   const estadoTexto = {
-    pendiente:  '⏳ Pendiente',
+    pendiente: '⏳ Pendiente',
     en_proceso: '🔄 En proceso',
-    entregado:  '✅ Entregado',
-    cancelado:  '❌ Cancelado'
+    entregado: '✅ Entregado',
+    cancelado: '❌ Cancelado'
   };
 
   const html = `
@@ -106,7 +106,7 @@ async function enviarCambioEstado(order) {
         <p style="color:#666; font-size:.9rem;">¡Gracias por confiar en nosotros!</p>
       </div>
       <div style="background:#f4f4f4; padding:1rem; border-radius:0 0 12px 12px; text-align:center; font-size:.8rem; color:#999;">
-        Pedidos Online © 2025
+        Pedidos Online ©️ 2025
       </div>
     </div>
   `;
@@ -119,4 +119,44 @@ async function enviarCambioEstado(order) {
   });
 }
 
-module.exports = { enviarConfirmacionPedido, enviarCambioEstado };
+// Email: Denegación de solicitud
+async function enviarDenegacionSolicitud(data) {
+  const html = `
+    <div style="font-family: Segoe UI, sans-serif; max-width:600px; margin:0 auto;">
+      <div style="background:#1a1a2e; padding:1.5rem; border-radius:12px 12px 0 0; text-align:center;">
+        <h1 style="color:#e85d04; margin:0;">🍔 Pedidos Online</h1>
+      </div>
+      <div style="background:#fff; padding:2rem; border:1px solid #eee;">
+        <h2 style="color:#1a1a2e;">❌ Solicitud no aprobada</h2>
+        <p>Hola <strong>${data.customer_name}</strong>, revisamos tu solicitud relacionada con el pedido <strong>#${data.order_id}</strong>.</p>
+
+        <div style="background:#f4f4f4; border-radius:8px; padding:1rem; margin:1.5rem 0;">
+          <p style="margin:.3rem 0;"><strong>Solicitud #:</strong> ${data.request_id}</p>
+          <p style="margin:.3rem 0;"><strong>Pedido #:</strong> ${data.order_id}</p>
+          <p style="margin:.3rem 0;"><strong>Resultado:</strong> Denegada</p>
+          ${data.resolution_note ? `<p style="margin:.3rem 0;"><strong>Motivo:</strong> ${data.resolution_note}</p>` : ''}
+        </div>
+
+        <p style="color:#666; font-size:.9rem;">
+          Si crees que hubo un error, puedes comunicarte nuevamente con nosotros.
+        </p>
+      </div>
+      <div style="background:#f4f4f4; padding:1rem; border-radius:0 0 12px 12px; text-align:center; font-size:.8rem; color:#999;">
+        Pedidos Online ©️ 2025
+      </div>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: data.email,
+    subject: `❌ Solicitud del pedido #${data.order_id} denegada`,
+    html
+  });
+}
+
+module.exports = {
+  enviarConfirmacionPedido,
+  enviarCambioEstado,
+  enviarDenegacionSolicitud
+};

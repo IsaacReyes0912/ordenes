@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitud #<%= request.id %> — Empleado</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="admin-topbar">
+  <h1>🍔 Panel Empleado — Detalle de solicitud</h1>
+  <a href="/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+</div>
+
+<div class="admin-container">
+  <a href="/empleado/devoluciones" class="back-link">← Volver a solicitudes</a>
+
+  <% if (success === 'approved') { %>
+    <div style="background:#d4edda; color:#155724; padding:1rem; border-radius:8px; margin-bottom:1rem;">
+      ✅ Solicitud aprobada y nuevo pedido generado automáticamente.
+    </div>
+  <% } %>
+
+  <% if (success === 'denied') { %>
+    <div style="background:#fff3cd; color:#856404; padding:1rem; border-radius:8px; margin-bottom:1rem;">
+      ⚠️ Solicitud denegada correctamente.
+    </div>
+  <% } %>
+
+  <div class="detail-card">
+    <h3>Información de la solicitud</h3>
+    <p><strong>Solicitud #:</strong> <%= request.id %></p>
+    <p><strong>Pedido original #:</strong> <%= request.order_id %></p>
+    <p><strong>Cliente:</strong> <%= request.customer_name %> (<%= request.email %>)</p>
+    <p><strong>Estado solicitud:</strong> <%= request.status %></p>
+    <p><strong>Fecha:</strong> <%= new Date(request.created_at).toLocaleString('es-MX') %></p>
+    <p><strong>Problema reportado:</strong><br><%= request.problem_note %></p>
+    <% if (request.resolution_note) { %>
+      <p><strong>Resolución:</strong><br><%= request.resolution_note %></p>
+    <% } %>
+    <% if (request.new_order_id) { %>
+      <p><strong>Nuevo pedido generado:</strong> #<%= request.new_order_id %></p>
+    <% } %>
+  </div>
+
+  <div class="detail-card">
+    <h3>Productos del pedido original</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Precio unit.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach(item => { %>
+          <tr>
+            <td><%= item.product_name %></td>
+            <td><%= item.quantity %></td>
+            <td>$<%= parseFloat(item.unit_price).toFixed(2) %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <% if (request.status === 'pendiente') { %>
+    <div class="detail-card">
+      <h3>Acciones</h3>
+
+      <form method="POST" action="/empleado/devolucion/<%= request.id %>/aprobar" style="margin-bottom:1rem;">
+        <div class="form-group">
+          <label>Nota de resolución (opcional)</label>
+          <textarea name="resolution_note" rows="3" placeholder="Ej: Se reenviará el pedido sin costo."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Aprobar y generar nuevo pedido</button>
+      </form>
+
+      <form method="POST" action="/empleado/devolucion/<%= request.id %>/denegar">
+        <div class="form-group">
+          <label>Motivo de denegación (opcional)</label>
+          <textarea name="resolution_note" rows="3" placeholder="Ej: No aplica por ..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-outline">Denegar solicitud</button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+</body>
+</html>

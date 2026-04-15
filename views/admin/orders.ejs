@@ -21,11 +21,11 @@
   <!-- Estadísticas -->
   <%
     const counts = { pendiente:0, en_proceso:0, entregado:0, cancelado:0 };
-    orders.forEach(o => counts[o.status] = (counts[o.status]||0) + 1);
+    orders.forEach(o => counts[o.status] = (counts[o.status] || 0) + 1);
   %>
   <div class="stats-bar">
     <div class="stat-card">
-      <div class="stat-num"><%= orders.length %></div>
+      <div class="stat-num"><%= totalOrders %></div>
       <div class="stat-label">Total pedidos</div>
     </div>
     <div class="stat-card">
@@ -48,11 +48,30 @@
 
   <!-- Filtros -->
   <div class="filter-bar">
-    <a href="/admin" class="btn <%= !statusFilter ? 'btn-dark' : 'btn-outline' %> btn-sm">Todos</a>
-    <a href="/admin?status=pendiente"  class="btn <%= statusFilter==='pendiente'  ? 'btn-dark':'btn-outline' %> btn-sm">⏳ Pendientes</a>
-    <a href="/admin?status=en_proceso" class="btn <%= statusFilter==='en_proceso' ? 'btn-dark':'btn-outline' %> btn-sm">🔄 En proceso</a>
-    <a href="/admin?status=entregado"  class="btn <%= statusFilter==='entregado'  ? 'btn-dark':'btn-outline' %> btn-sm">✅ Entregados</a>
-    <a href="/admin?status=cancelado"  class="btn <%= statusFilter==='cancelado'  ? 'btn-dark':'btn-outline' %> btn-sm">❌ Cancelados</a>
+    <a href="/admin?limit=<%= limit %>&page=1" class="btn <%= !statusFilter ? 'btn-dark' : 'btn-outline' %> btn-sm">Todos</a>
+    <a href="/admin?status=pendiente&limit=<%= limit %>&page=1" class="btn <%= statusFilter==='pendiente' ? 'btn-dark':'btn-outline' %> btn-sm">⏳ Pendientes</a>
+    <a href="/admin?status=en_proceso&limit=<%= limit %>&page=1" class="btn <%= statusFilter==='en_proceso' ? 'btn-dark':'btn-outline' %> btn-sm">🔄 En proceso</a>
+    <a href="/admin?status=entregado&limit=<%= limit %>&page=1" class="btn <%= statusFilter==='entregado' ? 'btn-dark':'btn-outline' %> btn-sm">✅ Entregados</a>
+    <a href="/admin?status=cancelado&limit=<%= limit %>&page=1" class="btn <%= statusFilter==='cancelado' ? 'btn-dark':'btn-outline' %> btn-sm">❌ Cancelados</a>
+  </div>
+
+  <!-- Selector y resumen -->
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1rem;">
+    <form method="GET" action="/admin" style="display:flex; align-items:center; gap:.6rem;">
+      <input type="hidden" name="status" value="<%= statusFilter %>">
+      <input type="hidden" name="page" value="1">
+
+      <label for="limit"><strong>Mostrar:</strong></label>
+      <select name="limit" id="limit" onchange="this.form.submit()" class="btn btn-outline btn-sm">
+        <option value="10" <%= limit == 10 ? 'selected' : '' %>>10</option>
+        <option value="25" <%= limit == 25 ? 'selected' : '' %>>25</option>
+        <option value="50" <%= limit == 50 ? 'selected' : '' %>>50</option>
+      </select>
+    </form>
+
+    <div style="font-size:.95rem; color:#666;">
+      Mostrando <strong><%= orders.length %></strong> de <strong><%= totalOrders %></strong> pedidos
+    </div>
   </div>
 
   <!-- Tabla de pedidos -->
@@ -71,31 +90,56 @@
       </thead>
       <tbody>
         <% if (orders.length === 0) { %>
-          <tr><td colspan="7" style="text-align:center; color:#999; padding:2rem;">No hay pedidos.</td></tr>
+          <tr>
+            <td colspan="7" style="text-align:center; color:#999; padding:2rem;">No hay pedidos.</td>
+          </tr>
         <% } %>
+
         <% orders.forEach(order => { %>
-        <tr>
-          <td><strong>#<%= order.id %></strong></td>
-          <td><%= order.customer_name %></td>
-          <td><%= order.phone %></td>
-          <td style="color:#e85d04; font-weight:700;">$<%= parseFloat(order.total).toFixed(2) %></td>
-          <td>
-            <span class="badge-status badge-<%= order.status %>">
-              <%= order.status.replace('_', ' ') %>
-            </span>
-          </td>
-          <td style="font-size:.82rem; color:#666;">
-            <%= new Date(order.created_at).toLocaleString('es-MX', {
-              day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
-            }) %>
-          </td>
-          <td>
-            <a href="/admin/order/<%= order.id %>" class="btn btn-dark btn-sm">Ver detalle</a>
-          </td>
-        </tr>
+          <tr>
+            <td><strong>#<%= order.id %></strong></td>
+            <td><%= order.customer_name %></td>
+            <td><%= order.phone %></td>
+            <td style="color:#e85d04; font-weight:700;">$<%= parseFloat(order.total).toFixed(2) %></td>
+            <td>
+              <span class="badge-status badge-<%= order.status %>">
+                <%= order.status.replace('_', ' ') %>
+              </span>
+            </td>
+            <td style="font-size:.82rem; color:#666;">
+              <%= new Date(order.created_at).toLocaleString('es-MX', {
+                day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
+              }) %>
+            </td>
+            <td>
+              <a href="/admin/order/<%= order.id %>" class="btn btn-dark btn-sm">Ver detalle</a>
+            </td>
+          </tr>
         <% }) %>
       </tbody>
     </table>
+  </div>
+
+  <!-- Paginación -->
+  <div style="margin-top:1.2rem; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; justify-content:center;">
+    <% if (currentPage > 1) { %>
+      <a href="/admin?status=<%= encodeURIComponent(statusFilter) %>&limit=<%= limit %>&page=<%= currentPage - 1 %>" class="btn btn-outline btn-sm">
+        Anterior
+      </a>
+    <% } %>
+
+    <% for (let i = 1; i <= totalPages; i++) { %>
+      <a href="/admin?status=<%= encodeURIComponent(statusFilter) %>&limit=<%= limit %>&page=<%= i %>"
+         class="btn btn-sm <%= i === currentPage ? 'btn-dark' : 'btn-outline' %>">
+        <%= i %>
+      </a>
+    <% } %>
+
+    <% if (currentPage < totalPages) { %>
+      <a href="/admin?status=<%= encodeURIComponent(statusFilter) %>&limit=<%= limit %>&page=<%= currentPage + 1 %>" class="btn btn-outline btn-sm">
+        Siguiente
+      </a>
+    <% } %>
   </div>
 
 </div>

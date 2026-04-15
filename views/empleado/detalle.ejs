@@ -11,7 +11,7 @@
 <div class="admin-topbar">
   <h1>🍔 Panel Empleado</h1>
   <div style="display:flex; gap:.8rem; align-items:center;">
-    <a href="/empleado/pedidos" style="color:#ccc; text-decoration:none; font-size:.9rem;">← Pedidos</a>
+    <a href="/empleado/devoluciones?orderId=<%= order.id %>" style="color:#ccc; text-decoration:none; font-size:.9rem;">Problemas reportados</a>
     <a href="/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
   </div>
 </div>
@@ -20,7 +20,6 @@
 
   <a href="/empleado/pedidos" class="back-link">← Volver a pedidos</a>
 
-  <!-- Datos del cliente -->
   <div class="detail-card">
     <h3>👤 Datos del cliente</h3>
     <div class="detail-grid">
@@ -57,7 +56,6 @@
     </div>
   </div>
 
-  <!-- Productos del pedido -->
   <div class="detail-card">
     <h3>🛒 Productos</h3>
     <div class="table-wrapper">
@@ -94,7 +92,6 @@
     </div>
   </div>
 
-  <!-- Cambiar estado -->
   <div class="detail-card">
     <h3>🔄 Actualizar estado</h3>
     <form method="POST" action="/empleado/pedido/<%= order.id %>/status" class="status-form">

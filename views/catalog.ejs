@@ -40,7 +40,7 @@
   <div class="cart-footer">
     <div class="cart-total">
       <span>Total:</span>
-      <span id="cart-total">$0.00</span>
+      <span id="cart-total">L. 0.00</span>
     </div>
     <button id="checkout-btn" class="btn btn-primary btn-full" disabled>
       Ir a pagar →
@@ -61,15 +61,16 @@
       <% } else { %>
         <div style="height:180px; background:#eee; display:flex; align-items:center; justify-content:center; font-size:3rem;">🍽️</div>
       <% } %>
+
       <div class="card-body">
         <div class="card-title"><%= product.name %></div>
-        <div class="card-price">$<%= parseFloat(product.price).toFixed(2) %></div>
+        <div class="card-price">L. <%= parseFloat(product.price).toFixed(2) %></div>
         <div class="stock-info">Stock disponible: <%= product.stock %></div>
         <button
           class="btn btn-primary btn-full"
           onclick='addToCart({
-            id:    <%= product.id %>,
-            name:  "<%= product.name.replace(/"/g,"&quot;") %>",
+            id: <%= product.id %>,
+            name: "<%= product.name.replace(/"/g,"&quot;") %>",
             price: <%= product.price %>,
             stock: <%= product.stock %>
           })'

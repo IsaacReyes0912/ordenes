@@ -76,3 +76,22 @@ INSERT INTO products (name, price, stock, image_url) VALUES
   ('Alitas BBQ (10 pzas)',      99.00,  35, 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=400'),
   ('Refresco 600ml',            30.00, 100, 'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=400'),
   ('Agua Natural 600ml',        20.00, 100, 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400');
+
+  -- ──────────────────────────────────────────────────────
+--  TABLA: return_requests
+-- ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS return_requests (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  order_id        INT NOT NULL,
+  user_id         INT NOT NULL,
+  problem_note    TEXT NOT NULL,
+  status          ENUM('pendiente','aprobada','denegada') NOT NULL DEFAULT 'pendiente',
+  resolution_note TEXT DEFAULT NULL,
+  reviewed_by     ENUM('ADMIN','EMPLEADO') DEFAULT NULL,
+  reviewed_at     TIMESTAMP NULL DEFAULT NULL,
+  new_order_id    INT DEFAULT NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (new_order_id) REFERENCES orders(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

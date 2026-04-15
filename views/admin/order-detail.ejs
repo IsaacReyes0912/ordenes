@@ -10,7 +10,10 @@
 
 <div class="admin-topbar">
   <h1>🍔 Admin — Detalle de pedido</h1>
-  <a href="/admin/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+  <div style="display:flex; gap:.8rem; align-items:center;">
+    <a href="/admin/devoluciones?orderId=<%= order.id %>" style="color:#ccc; text-decoration:none; font-size:.9rem;">Problemas reportados</a>
+    <a href="/admin/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+  </div>
 </div>
 
 <div class="admin-container">
@@ -23,7 +26,6 @@
     </span>
   </h2>
 
-  <!-- Info del cliente -->
   <div class="detail-card">
     <h3>👤 Datos del cliente</h3>
     <div class="detail-grid">
@@ -52,7 +54,6 @@
     </div>
   </div>
 
-  <!-- Productos del pedido -->
   <div class="detail-card">
     <h3>🛒 Productos</h3>
     <div class="table-wrapper">
@@ -89,7 +90,6 @@
     </div>
   </div>
 
-  <!-- Cambiar estado -->
   <div class="detail-card">
     <h3>🔄 Cambiar estado del pedido</h3>
     <form method="POST" action="/admin/order/<%= order.id %>/status" class="status-form">

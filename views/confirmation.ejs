@@ -33,7 +33,6 @@
       <% } %>
     </div>
 
-    <!-- Detalle de productos -->
     <table style="width:100%; border-collapse:collapse; font-size:.9rem; margin-bottom:1rem;">
       <thead>
         <tr style="background:#f4f4f4;">
@@ -63,7 +62,12 @@
       </tfoot>
     </table>
 
-    <a href="/" class="btn btn-primary" style="margin-right:.6rem;">← Volver al menú</a>
+    <div style="display:flex; gap:.8rem; flex-wrap:wrap; justify-content:center;">
+      <a href="/" class="btn btn-primary">← Volver al menú</a>
+      <% if (currentUser) { %>
+        <a href="/problema-pedido?orderId=<%= order.id %>" class="btn btn-outline">Problema con pedido</a>
+      <% } %>
+    </div>
   </div>
 </div>
 

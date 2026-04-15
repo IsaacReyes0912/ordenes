@@ -7,7 +7,11 @@ const express = require('express');
 const session = require('express-session');
 const path    = require('path');
 const db      = require('./db');
-const { enviarConfirmacionPedido, enviarCambioEstado } = require('./mailer');
+const {
+  enviarConfirmacionPedido,
+  enviarCambioEstado,
+  enviarDenegacionSolicitud
+} = require('./mailer');
 const { crearOrdenPayPal, capturarOrdenPayPal } = require('./paypal');
 
 const app  = express();
@@ -110,7 +114,6 @@ app.post('/login', async (req, res) => {
 
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role };
 
-    // Redirigir según el rol
     if (user.role === 'EMPLEADO') return res.redirect('/empleado/pedidos');
     if (user.role === 'ADMIN') return res.redirect('/admin');
     res.redirect(redirectTo);
@@ -243,7 +246,6 @@ app.post('/checkout', async (req, res) => {
 
     await conn.commit();
 
-    // Enviar email de confirmación si el cliente está registrado
     if (userId) {
       try {
         const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [userId]);
@@ -295,6 +297,234 @@ app.get('/confirmation/:id', async (req, res) => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════
+//  SOLICITUDES DE PROBLEMA / DEVOLUCIÓN
+// ══════════════════════════════════════════════════════
+
+async function obtenerSolicitudCompleta(requestId) {
+  const [rows] = await db.query(
+    `SELECT
+        rr.*,
+        o.user_id       AS order_user_id,
+        o.customer_name,
+        o.phone,
+        o.address,
+        o.notes         AS order_notes,
+        o.total,
+        o.status        AS order_status,
+        u.email,
+        u.name          AS user_name
+     FROM return_requests rr
+     JOIN orders o ON o.id = rr.order_id
+     JOIN users  u ON u.id = rr.user_id
+     WHERE rr.id = ?`,
+    [requestId]
+  );
+
+  return rows.length ? rows[0] : null;
+}
+
+async function aprobarSolicitudYCrearNuevoPedido(requestId, actorRol, resolutionNote) {
+  const solicitud = await obtenerSolicitudCompleta(requestId);
+  if (!solicitud) throw new Error('Solicitud no encontrada.');
+  if (solicitud.status !== 'pendiente') throw new Error('La solicitud ya fue procesada.');
+
+  const conn = await db.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const [originalItems] = await conn.query(
+      `SELECT oi.*, p.name AS product_name, p.stock
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ?`,
+      [solicitud.order_id]
+    );
+
+    if (!originalItems.length) {
+      throw new Error('El pedido original no tiene productos.');
+    }
+
+    for (const item of originalItems) {
+      if (item.stock < item.quantity) {
+        throw new Error(`Stock insuficiente para reenviar: ${item.product_name}`);
+      }
+    }
+
+    const notasNuevas = [
+      solicitud.order_notes || '',
+      `Reposición automática por solicitud #${solicitud.id}.`,
+      resolutionNote ? `Resolución: ${resolutionNote}` : ''
+    ].filter(Boolean).join(' | ');
+
+    const [newOrderResult] = await conn.query(
+      `INSERT INTO orders (user_id, customer_name, phone, address, notes, total, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pendiente')`,
+      [
+        solicitud.order_user_id,
+        solicitud.customer_name,
+        solicitud.phone,
+        solicitud.address,
+        notasNuevas,
+        solicitud.total
+      ]
+    );
+
+    const newOrderId = newOrderResult.insertId;
+
+    for (const item of originalItems) {
+      await conn.query(
+        `INSERT INTO order_items (order_id, product_id, quantity, unit_price)
+         VALUES (?, ?, ?, ?)`,
+        [newOrderId, item.product_id, item.quantity, item.unit_price]
+      );
+
+      await conn.query(
+        `UPDATE products SET stock = stock - ? WHERE id = ?`,
+        [item.quantity, item.product_id]
+      );
+    }
+
+    await conn.query(
+      `UPDATE return_requests
+       SET status = 'aprobada',
+           resolution_note = ?,
+           reviewed_by = ?,
+           reviewed_at = NOW(),
+           new_order_id = ?
+       WHERE id = ?`,
+      [resolutionNote || null, actorRol, newOrderId, requestId]
+    );
+
+    await conn.commit();
+
+    const [emailItems] = await db.query(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ?`,
+      [newOrderId]
+    );
+
+    if (solicitud.email) {
+      const emailOrder = {
+        id: newOrderId,
+        customer_name: solicitud.customer_name,
+        phone: solicitud.phone,
+        address: solicitud.address,
+        total: parseFloat(solicitud.total).toFixed(2),
+        email: solicitud.email
+      };
+
+      try {
+        await enviarConfirmacionPedido(emailOrder, emailItems);
+      } catch (emailErr) {
+        console.error('Error enviando correo de reposición:', emailErr);
+      }
+    }
+
+    return newOrderId;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+app.get('/problema-pedido', requireAuth, async (req, res) => {
+  try {
+    const selectedOrderId = req.query.orderId || '';
+    const [orders] = await db.query(
+      `SELECT id, total, status, created_at
+       FROM orders
+       WHERE user_id = ?
+       ORDER BY created_at DESC`,
+      [req.session.user.id]
+    );
+
+    res.render('auth/problema-pedido', {
+      orders,
+      selectedOrderId,
+      success: req.query.ok === '1',
+      error: null,
+      old: {}
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar el formulario.');
+  }
+});
+
+app.post('/problema-pedido', requireAuth, async (req, res) => {
+  const { order_id, problem_note } = req.body;
+
+  try {
+    const [orders] = await db.query(
+      `SELECT id, total, status, created_at
+       FROM orders
+       WHERE user_id = ?
+       ORDER BY created_at DESC`,
+      [req.session.user.id]
+    );
+
+    if (!order_id || !problem_note || !problem_note.trim()) {
+      return res.render('auth/problema-pedido', {
+        orders,
+        selectedOrderId: order_id || '',
+        success: false,
+        error: 'Debes seleccionar un pedido y explicar el problema.',
+        old: { problem_note }
+      });
+    }
+
+    const [ownedOrder] = await db.query(
+      `SELECT id FROM orders WHERE id = ? AND user_id = ?`,
+      [order_id, req.session.user.id]
+    );
+
+    if (!ownedOrder.length) {
+      return res.render('auth/problema-pedido', {
+        orders,
+        selectedOrderId: order_id,
+        success: false,
+        error: 'Ese pedido no pertenece a tu cuenta.',
+        old: { problem_note }
+      });
+    }
+
+    const [existingPending] = await db.query(
+      `SELECT id FROM return_requests
+       WHERE order_id = ? AND user_id = ? AND status = 'pendiente'`,
+      [order_id, req.session.user.id]
+    );
+
+    if (existingPending.length) {
+      return res.render('auth/problema-pedido', {
+        orders,
+        selectedOrderId: order_id,
+        success: false,
+        error: 'Ya existe una solicitud pendiente para ese pedido.',
+        old: { problem_note }
+      });
+    }
+
+    await db.query(
+      `INSERT INTO return_requests (order_id, user_id, problem_note)
+       VALUES (?, ?, ?)`,
+      [order_id, req.session.user.id, problem_note.trim()]
+    );
+
+    res.redirect('/problema-pedido?ok=1');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al guardar la solicitud.');
+  }
+});
+
+
 // ══════════════════════════════════════════════════════
 //  RUTAS ADMIN
 // ══════════════════════════════════════════════════════
@@ -322,15 +552,42 @@ app.get('/admin/logout', (req, res) => {
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
     const statusFilter = req.query.status || '';
-    let query  = 'SELECT * FROM orders';
-    let params = [];
+    const allowedLimits = [10, 25, 50];
+    const limit = allowedLimits.includes(parseInt(req.query.limit))
+      ? parseInt(req.query.limit)
+      : 10;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    let whereParams = [];
+
     if (statusFilter) {
-      query  += ' WHERE status = ?';
-      params  = [statusFilter];
+      whereClause = ' WHERE status = ?';
+      whereParams = [statusFilter];
     }
-    query += ' ORDER BY created_at DESC';
-    const [orders] = await db.query(query, params);
-    res.render('admin/orders', { orders, statusFilter });
+
+    const countQuery = `SELECT COUNT(*) AS total FROM orders${whereClause}`;
+    const [countRows] = await db.query(countQuery, whereParams);
+    const totalOrders = countRows[0].total;
+    const totalPages = Math.max(Math.ceil(totalOrders / limit), 1);
+
+    const dataQuery = `
+      SELECT * FROM orders
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    const [orders] = await db.query(dataQuery, [...whereParams, limit, offset]);
+
+    res.render('admin/orders', {
+      orders,
+      statusFilter,
+      currentPage: page,
+      totalPages,
+      limit,
+      totalOrders
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send('Error al cargar pedidos.');
@@ -364,7 +621,6 @@ app.post('/admin/order/:id/status', requireAdmin, async (req, res) => {
   try {
     await db.query('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
 
-    // Enviar email de cambio de estado
     try {
       const [orderRows] = await db.query(
         `SELECT o.*, u.email AS email
@@ -388,6 +644,125 @@ app.post('/admin/order/:id/status', requireAdmin, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════
+//  DEVOLUCIONES / PROBLEMAS — ADMIN
+// ══════════════════════════════════════════════════════
+
+app.get('/admin/devoluciones', requireAdmin, async (req, res) => {
+  try {
+    const statusFilter = req.query.status || '';
+    const orderIdFilter = req.query.orderId || '';
+
+    const conditions = [];
+    const params = [];
+
+    if (statusFilter) {
+      conditions.push('rr.status = ?');
+      params.push(statusFilter);
+    }
+
+    if (orderIdFilter) {
+      conditions.push('rr.order_id = ?');
+      params.push(orderIdFilter);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const [requests] = await db.query(
+      `SELECT
+          rr.*,
+          o.customer_name,
+          o.phone,
+          o.total,
+          u.email
+       FROM return_requests rr
+       JOIN orders o ON o.id = rr.order_id
+       JOIN users  u ON u.id = rr.user_id
+       ${whereClause}
+       ORDER BY rr.created_at DESC`,
+      params
+    );
+
+    res.render('admin/devoluciones', { requests, statusFilter, orderIdFilter });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar solicitudes.');
+  }
+});
+
+app.get('/admin/devolucion/:id', requireAdmin, async (req, res) => {
+  try {
+    const request = await obtenerSolicitudCompleta(req.params.id);
+    if (!request) return res.status(404).send('Solicitud no encontrada.');
+
+    const [items] = await db.query(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ?`,
+      [request.order_id]
+    );
+
+    res.render('admin/devolucion-detalle', {
+      request,
+      items,
+      success: req.query.ok || ''
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar la solicitud.');
+  }
+});
+
+app.post('/admin/devolucion/:id/aprobar', requireAdmin, async (req, res) => {
+  try {
+    const { resolution_note } = req.body;
+    await aprobarSolicitudYCrearNuevoPedido(req.params.id, 'ADMIN', resolution_note || null);
+    res.redirect(`/admin/devolucion/${req.params.id}?ok=approved`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al aprobar la solicitud: ' + err.message);
+  }
+});
+
+app.post('/admin/devolucion/:id/denegar', requireAdmin, async (req, res) => {
+  try {
+    const { resolution_note } = req.body;
+
+    const request = await obtenerSolicitudCompleta(req.params.id);
+    if (!request) return res.status(404).send('Solicitud no encontrada.');
+    if (request.status !== 'pendiente') return res.status(400).send('La solicitud ya fue procesada.');
+
+    await db.query(
+      `UPDATE return_requests
+       SET status = 'denegada',
+           resolution_note = ?,
+           reviewed_by = 'ADMIN',
+           reviewed_at = NOW()
+       WHERE id = ?`,
+      [resolution_note || null, req.params.id]
+    );
+
+    if (request.email) {
+      try {
+        await enviarDenegacionSolicitud({
+          email: request.email,
+          customer_name: request.customer_name,
+          order_id: request.order_id,
+          request_id: request.id,
+          resolution_note: resolution_note || null
+        });
+      } catch (emailErr) {
+        console.error('Error enviando correo de denegación:', emailErr);
+      }
+    }
+
+    res.redirect(`/admin/devolucion/${req.params.id}?ok=denied`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al denegar la solicitud.');
+  }
+});
+// ══════════════════════════════════════════════════════
 //  RUTAS EMPLEADO
 // ══════════════════════════════════════════════════════
 
@@ -401,15 +776,42 @@ function requireEmpleado(req, res, next) {
 app.get('/empleado/pedidos', requireEmpleado, async (req, res) => {
   try {
     const statusFilter = req.query.status || '';
-    let query  = 'SELECT * FROM orders';
-    let params = [];
+    const allowedLimits = [10, 25, 50];
+    const limit = allowedLimits.includes(parseInt(req.query.limit))
+      ? parseInt(req.query.limit)
+      : 10;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    let whereParams = [];
+
     if (statusFilter) {
-      query  += ' WHERE status = ?';
-      params  = [statusFilter];
+      whereClause = ' WHERE status = ?';
+      whereParams = [statusFilter];
     }
-    query += ' ORDER BY created_at DESC';
-    const [orders] = await db.query(query, params);
-    res.render('empleado/pedidos', { orders, statusFilter });
+
+    const countQuery = `SELECT COUNT(*) AS total FROM orders${whereClause}`;
+    const [countRows] = await db.query(countQuery, whereParams);
+    const totalOrders = countRows[0].total;
+    const totalPages = Math.max(Math.ceil(totalOrders / limit), 1);
+
+    const dataQuery = `
+      SELECT * FROM orders
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    const [orders] = await db.query(dataQuery, [...whereParams, limit, offset]);
+
+    res.render('empleado/pedidos', {
+      orders,
+      statusFilter,
+      currentPage: page,
+      totalPages,
+      limit,
+      totalOrders
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send('Error al cargar pedidos.');
@@ -443,7 +845,6 @@ app.post('/empleado/pedido/:id/status', requireEmpleado, async (req, res) => {
   try {
     await db.query('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
 
-    // Enviar email de cambio de estado
     try {
       const [orderRows] = await db.query(
         `SELECT o.*, u.email AS email
@@ -465,6 +866,128 @@ app.post('/empleado/pedido/:id/status', requireEmpleado, async (req, res) => {
     res.status(500).send('Error al actualizar estado.');
   }
 });
+
+
+// ══════════════════════════════════════════════════════
+//  DEVOLUCIONES / PROBLEMAS — EMPLEADO
+// ══════════════════════════════════════════════════════
+
+app.get('/empleado/devoluciones', requireEmpleado, async (req, res) => {
+  try {
+    const statusFilter = req.query.status || '';
+    const orderIdFilter = req.query.orderId || '';
+
+    const conditions = [];
+    const params = [];
+
+    if (statusFilter) {
+      conditions.push('rr.status = ?');
+      params.push(statusFilter);
+    }
+
+    if (orderIdFilter) {
+      conditions.push('rr.order_id = ?');
+      params.push(orderIdFilter);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const [requests] = await db.query(
+      `SELECT
+          rr.*,
+          o.customer_name,
+          o.phone,
+          o.total,
+          u.email
+       FROM return_requests rr
+       JOIN orders o ON o.id = rr.order_id
+       JOIN users  u ON u.id = rr.user_id
+       ${whereClause}
+       ORDER BY rr.created_at DESC`,
+      params
+    );
+
+    res.render('empleado/devoluciones', { requests, statusFilter, orderIdFilter });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar solicitudes.');
+  }
+});
+
+app.get('/empleado/devolucion/:id', requireEmpleado, async (req, res) => {
+  try {
+    const request = await obtenerSolicitudCompleta(req.params.id);
+    if (!request) return res.status(404).send('Solicitud no encontrada.');
+
+    const [items] = await db.query(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ?`,
+      [request.order_id]
+    );
+
+    res.render('empleado/devolucion-detalle', {
+      request,
+      items,
+      success: req.query.ok || ''
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al cargar la solicitud.');
+  }
+});
+
+app.post('/empleado/devolucion/:id/aprobar', requireEmpleado, async (req, res) => {
+  try {
+    const { resolution_note } = req.body;
+    await aprobarSolicitudYCrearNuevoPedido(req.params.id, 'EMPLEADO', resolution_note || null);
+    res.redirect(`/empleado/devolucion/${req.params.id}?ok=approved`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al aprobar la solicitud: ' + err.message);
+  }
+});
+
+app.post('/empleado/devolucion/:id/denegar', requireEmpleado, async (req, res) => {
+  try {
+    const { resolution_note } = req.body;
+
+    const request = await obtenerSolicitudCompleta(req.params.id);
+    if (!request) return res.status(404).send('Solicitud no encontrada.');
+    if (request.status !== 'pendiente') return res.status(400).send('La solicitud ya fue procesada.');
+
+    await db.query(
+      `UPDATE return_requests
+       SET status = 'denegada',
+           resolution_note = ?,
+           reviewed_by = 'EMPLEADO',
+           reviewed_at = NOW()
+       WHERE id = ?`,
+      [resolution_note || null, req.params.id]
+    );
+
+    if (request.email) {
+      try {
+        await enviarDenegacionSolicitud({
+          email: request.email,
+          customer_name: request.customer_name,
+          order_id: request.order_id,
+          request_id: request.id,
+          resolution_note: resolution_note || null
+        });
+      } catch (emailErr) {
+        console.error('Error enviando correo de denegación:', emailErr);
+      }
+    }
+
+    res.redirect(`/empleado/devolucion/${req.params.id}?ok=denied`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al denegar la solicitud.');
+  }
+});
+
 
 // ══════════════════════════════════════════════════════
 //  RUTAS DE PAGO PAYPAL
@@ -533,7 +1056,6 @@ app.post('/paypal/capturar-orden', async (req, res) => {
 
         await conn.commit();
 
-        // Enviar email de confirmación
         if (userId) {
           try {
             const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [userId]);

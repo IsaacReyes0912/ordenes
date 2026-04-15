@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitudes de problema — Empleado</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="admin-topbar">
+  <h1>🍔 Panel Empleado — Solicitudes</h1>
+  <div style="display:flex; gap:.8rem; align-items:center;">
+    <a href="/empleado/pedidos" style="color:#ccc; text-decoration:none; font-size:.9rem;">Pedidos</a>
+    <a href="/logout" class="btn btn-outline btn-sm" style="color:#fff; border-color:#fff;">Salir</a>
+  </div>
+</div>
+
+<div class="admin-container">
+  <div class="filter-bar">
+    <a href="/empleado/devoluciones" class="btn <%= !statusFilter ? 'btn-dark' : 'btn-outline' %> btn-sm">Todas</a>
+    <a href="/empleado/devoluciones?status=pendiente" class="btn <%= statusFilter==='pendiente' ? 'btn-dark':'btn-outline' %> btn-sm">Pendientes</a>
+    <a href="/empleado/devoluciones?status=aprobada" class="btn <%= statusFilter==='aprobada' ? 'btn-dark':'btn-outline' %> btn-sm">Aprobadas</a>
+    <a href="/empleado/devoluciones?status=denegada" class="btn <%= statusFilter==='denegada' ? 'btn-dark':'btn-outline' %> btn-sm">Denegadas</a>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Solicitud</th>
+          <th>Pedido</th>
+          <th>Cliente</th>
+          <th>Fecha</th>
+          <th>Estado</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!requests.length) { %>
+          <tr><td colspan="6" style="text-align:center; padding:2rem; color:#999;">No hay solicitudes.</td></tr>
+        <% } %>
+
+        <% requests.forEach(request => { %>
+          <tr>
+            <td>#<%= request.id %></td>
+            <td>#<%= request.order_id %></td>
+            <td><%= request.customer_name %></td>
+            <td><%= new Date(request.created_at).toLocaleString('es-MX') %></td>
+            <td>
+              <span class="badge-status badge-<%= request.status === 'aprobada' ? 'entregado' : request.status === 'denegada' ? 'cancelado' : 'pendiente' %>">
+                <%= request.status %>
+              </span>
+            </td>
+            <td>
+              <a href="/empleado/devolucion/<%= request.id %>" class="btn btn-dark btn-sm">Ver detalle</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>
